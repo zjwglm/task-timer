@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Task Timer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        #timer {
+            font-size: 2em;
+            margin: 20px 0;
+        }
+        button {
+            font-size: 1em;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 5px 0;
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Task Timer</h1>
+    <div id="timer">00:00:00</div>
+    <button onclick="markTask()">Mark Task</button>
+    <button onclick="resetTimer()">Reset Timer</button>
+    <h2>Task Markers:</h2>
+    <ul id="markers"></ul>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAJ_9HtT5YeSFwanrIxY7EX5z9mWFmrkf0",
+            authDomain: "tasktimer-1cbb7.firebaseapp.com",
+            projectId: "tasktimer-1cbb7",
+            storageBucket: "tasktimer-1cbb7.firebaseapp.com",
+            messagingSenderId: "621072549323",
+            appId: "1:621072549323:web:e3065d1eb9b83d87b4624e"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Firebase references
+        const timerRef = ref(db, 'timer');
+        const startTimeRef = ref(db, 'timer/startTime');
+        const markersRef = ref(db, 'timer/markers');
+
+        let startTime = null;
+        let lastMarkerTime = null;
+        let timerInterval = null;
+
+        // Ensure DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("Initializing app...");
+
+            // Fetch the startTime from Firebase
+            onValue(startTimeRef, (snapshot) => {
+                const timerElement = document.getElementById('timer');
+                if (!timerElement) {
+                    console.error("Element with id 'timer' not found.");
+                    return;
+                }
+
+                if (snapshot.exists()) {
+                    startTime = snapshot.val();
+                    console.log("Start time loaded from Firebase:", startTime);
+                } else {
+                    startTime = Date.now();
+                    saveStartTime(startTime);
+                    console.log("Start time initialized:", startTime);
+                }
+
+                // Start the timer once the startTime is set
+                startTimer();
+            }, (error) => {
+                console.error("Error reading startTime from Firebase:", error);
+            });
+
+            // Fetch markers from Firebase in real time
+            onValue(markersRef, (snapshot) => {
+                const markersElement = document.getElementById('markers');
+                if (!markersElement) {
+                    console.error("Element with id 'markers' not found.");
+                    return;
+                }
+
+                console.log("Markers updated in real-time.");
+                const markers = snapshot.val() || {};
+                markersElement.innerHTML = ''; // Clear marker list
+                let markerCount = 1;
+                for (const key in markers) {
+                    const marker = markers[key];
+                    addMarkerToList(marker.dateTime, marker.interval, markerCount);
+                    markerCount++;
+                }
+            }, (error) => {
+                console.error("Error reading markers from Firebase:", error);
+            });
+        });
+
+        // Start the timer
+        function startTimer() {
+            const timerElement = document.getElementById('timer');
+            if (!timerElement) {
+                console.error("Element with id 'timer' not found. Cannot start timer.");
+                return;
+            }
+
+            if (!startTime) {
+                console.error("startTime is not set. Timer cannot start.");
+                return;
+            }
+
+            if (timerInterval) clearInterval(timerInterval); // Avoid duplicate intervals
+
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                console.log("Elapsed time:", elapsed);
+
+                const hours = Math.floor(elapsed / 3600000).toString().padStart(2, '0');
+                const minutes = Math.floor((elapsed % 3600000) / 60000).toString().padStart(2, '0');
+                const seconds = Math.floor((elapsed % 60000) / 1000).toString().padStart(2, '0');
+
+                timerElement.innerText = `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+
+            console.log("Timer started.");
+        }
+
+        // Save startTime to Firebase
+        function saveStartTime(startTime) {
+            set(startTimeRef, startTime)
+                .then(() => console.log("Start time saved to Firebase:", startTime))
+                .catch((error) => console.error("Error saving startTime to Firebase:", error));
+        }
+
+        // Mark a task
+        function markTask() {
+            const now = Date.now();
+            const date = new Date(now);
+            const dateTime = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.toISOString().substr(11, 8)}`;
+            let interval = '00:00:00';
+
+            if (lastMarkerTime !== null) {
+                const diff = now - lastMarkerTime;
+                const hours = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const minutes = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const seconds = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                interval = `${hours}:${minutes}:${seconds}`;
+            }
+
+            lastMarkerTime = now;
+
+            // Save marker to Firebase
+            const marker = { dateTime, interval };
+            push(markersRef, marker)
+                .then(() => console.log("Marker added to Firebase:", marker))
+                .catch((error) => console.error("Error adding marker to Firebase:", error));
+        }
+
+        // Add a marker to the list
+        function addMarkerToList(dateTime, interval, sequence) {
+            const markersElement = document.getElementById('markers');
+            if (!markersElement) {
+                console.error("Element with id 'markers' not found. Cannot add marker.");
+                return;
+            }
+
+            const listItem = document.createElement('li');
+            listItem.textContent = `${sequence}. Task completed at: ${dateTime} (Interval: ${interval})`;
+            markersElement.insertBefore(listItem, markersElement.firstChild);
+        }
+
+        // Reset the timer and markers
+        function resetTimer() {
+            if (confirm('Are you sure you want to reset the timer and clear all markers?')) {
+                set(timerRef, null) // Clear the timer and markers in Firebase
+                    .then(() => console.log("Timer and markers reset in Firebase."))
+                    .catch((error) => console.error("Error resetting timer in Firebase:", error));
+                clearInterval(timerInterval);
+                location.reload();
+            }
+        }
+
+        // Attach functions to the global `window` object
+        window.markTask = markTask;
+        window.resetTimer = resetTimer;
+    </script>
+</body>
+</html>
