@@ -53,7 +53,10 @@
 <body>
     <h1>Real-Time Task Timer</h1>
     <div id="timer">00:00:00</div>
-    <button onclick="markTask()">Mark Task</button>
+
+    <div style="text-align: center;">
+        <button onclick="markTask()">Mark Task</button>
+    </div>
 
     <h2>Task Markers:</h2>
     <ul id="markers"></ul>
@@ -159,9 +162,11 @@
         }
 
         function markTask() {
-            const now = Date.now();
-            const date = new Date(now);
-            const dateTime = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.toISOString().substr(11, 8)}`;
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            const dateTime = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${hours}:${minutes}:${seconds}`;
             push(markersRef, { dateTime });
         }
 
